@@ -40,8 +40,10 @@ from google import genai
 from google.genai import types
 
 # ----------------------------- Global Fallbacks -----------------------------
-# Fallback path for yt-dlp on your system
+# Set your fallback executable paths here if not in PATH
 YTDLP_FALLBACK = r"C:\Users\DELL\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\Scripts\yt-dlp.exe"
+FFMPEG_FALLBACK = r"C:\ffmpeg\bin\ffmpeg.exe"  # <-- Update to your actual ffmpeg.exe path
+TESSERACT_FALLBACK = r"C:\Program Files\Tesseract-OCR\tesseract.exe"  # <-- Update if different
 
 # ----------------------------- Helpers -----------------------------
 
@@ -54,7 +56,7 @@ def run_cmd(cmd):
 
 def ensure_prog_exists(name):
     """
-    Ensure a program exists, with a special fallback for yt-dlp.
+    Ensure a program exists, with fallbacks for yt-dlp, ffmpeg, tesseract.
     Returns the executable path to use.
     """
     exe_path = shutil.which(name)
@@ -63,6 +65,10 @@ def ensure_prog_exists(name):
 
     if name.lower() == "yt-dlp" and Path(YTDLP_FALLBACK).is_file():
         return YTDLP_FALLBACK
+    if name.lower() == "ffmpeg" and Path(FFMPEG_FALLBACK).is_file():
+        return FFMPEG_FALLBACK
+    if name.lower() == "tesseract" and Path(TESSERACT_FALLBACK).is_file():
+        return TESSERACT_FALLBACK
 
     raise RuntimeError(f"Required binary '{name}' not found in PATH or fallback location.")
 
@@ -73,7 +79,14 @@ def download_video(url, outdir):
     yt_dlp_path = ensure_prog_exists("yt-dlp")
     Path(outdir).mkdir(parents=True, exist_ok=True)
     target = str(Path(outdir) / "video.%(ext)s")
-    run_cmd([yt_dlp_path, "-f", "bestvideo+bestaudio", "--merge-output-format", "mp4", "-o", target, url])
+    run_cmd([
+        yt_dlp_path,
+        "-f", "bestvideo+bestaudio",
+        "--merge-output-format", "mp4",
+        "--no-keep-video",  # remove temp files
+        "-o", target,
+        url
+    ])
     mp4s = sorted(Path(outdir).glob("*.mp4"), key=lambda p: p.stat().st_size, reverse=True)
     if not mp4s:
         raise RuntimeError("No mp4 downloaded.")
@@ -83,7 +96,13 @@ def download_video(url, outdir):
 def extract_frames(video_path, frames_dir, fps=1):
     ffmpeg_path = ensure_prog_exists("ffmpeg")
     Path(frames_dir).mkdir(parents=True, exist_ok=True)
-    run_cmd([ffmpeg_path, "-hide_banner", "-loglevel", "error", "-i", video_path, "-vf", f"fps={fps}", str(Path(frames_dir) / "frame_%06d.png")])
+    run_cmd([
+        ffmpeg_path,
+        "-hide_banner", "-loglevel", "error",
+        "-i", video_path,
+        "-vf", f"fps={fps}",
+        str(Path(frames_dir) / "frame_%06d.png")
+    ])
     return sorted(Path(frames_dir).glob("*.png"))
 
 
@@ -104,6 +123,8 @@ def deduplicate_frames(frames, threshold=5):
 
 
 def ocr_frames(frames, lang='eng', psm=6):
+    tesseract_path = ensure_prog_exists("tesseract")
+    pytesseract.pytesseract.tesseract_cmd = tesseract_path
     all_text = {}
     config = f"--psm {psm} -c tessedit_char_whitelist=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_[](){{}}<>:;.,+-=*/\\\"'#%&|@!?^~ \t"
     for f in tqdm(frames, desc="OCR"):
