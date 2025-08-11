@@ -1,0 +1,17 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual environments
+venv/
+.env/
+
+# Node modules (if you accidentally have them in your repo)
+node_modules/
+
+# Environment files
+.env
+*.env
+
+# Output folders
+output/

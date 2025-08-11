@@ -39,28 +39,41 @@ from tqdm import tqdm
 from google import genai
 from google.genai import types
 
+# ----------------------------- Global Fallbacks -----------------------------
+# Fallback path for yt-dlp on your system
+YTDLP_FALLBACK = r"C:\Users\DELL\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\Scripts\yt-dlp.exe"
 
 # ----------------------------- Helpers -----------------------------
 
 def run_cmd(cmd):
     res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if res.returncode != 0:
-        raise RuntimeError(f"Command failed: {' '.join(cmd)}\n{res.stderr}")
+        raise RuntimeError(f"Command failed: {' '.join(map(str, cmd))}\n{res.stderr}")
     return res.stdout
 
 
 def ensure_prog_exists(name):
-    if shutil.which(name) is None:
-        raise RuntimeError(f"Required binary '{name}' not found in PATH.")
+    """
+    Ensure a program exists, with a special fallback for yt-dlp.
+    Returns the executable path to use.
+    """
+    exe_path = shutil.which(name)
+    if exe_path:
+        return exe_path
+
+    if name.lower() == "yt-dlp" and Path(YTDLP_FALLBACK).is_file():
+        return YTDLP_FALLBACK
+
+    raise RuntimeError(f"Required binary '{name}' not found in PATH or fallback location.")
 
 
 # ----------------------------- Pipeline -----------------------------
 
 def download_video(url, outdir):
-    ensure_prog_exists("yt-dlp")
+    yt_dlp_path = ensure_prog_exists("yt-dlp")
     Path(outdir).mkdir(parents=True, exist_ok=True)
     target = str(Path(outdir) / "video.%(ext)s")
-    run_cmd(["yt-dlp", "-f", "bestvideo+bestaudio", "--merge-output-format", "mp4", "-o", target, url])
+    run_cmd([yt_dlp_path, "-f", "bestvideo+bestaudio", "--merge-output-format", "mp4", "-o", target, url])
     mp4s = sorted(Path(outdir).glob("*.mp4"), key=lambda p: p.stat().st_size, reverse=True)
     if not mp4s:
         raise RuntimeError("No mp4 downloaded.")
@@ -68,9 +81,9 @@ def download_video(url, outdir):
 
 
 def extract_frames(video_path, frames_dir, fps=1):
-    ensure_prog_exists("ffmpeg")
+    ffmpeg_path = ensure_prog_exists("ffmpeg")
     Path(frames_dir).mkdir(parents=True, exist_ok=True)
-    run_cmd(["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", video_path, "-vf", f"fps={fps}", str(Path(frames_dir) / "frame_%06d.png")])
+    run_cmd([ffmpeg_path, "-hide_banner", "-loglevel", "error", "-i", video_path, "-vf", f"fps={fps}", str(Path(frames_dir) / "frame_%06d.png")])
     return sorted(Path(frames_dir).glob("*.png"))
 
 
