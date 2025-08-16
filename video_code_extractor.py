@@ -72,7 +72,40 @@ def download_youtube_video(url: str, outdir: str = "./output") -> str:
         return ydl.prepare_filename(info) #.replace(".webm", ".mp4").replace(".mkv", ".mp4")
 
 
+def extract_frames(video_path: str, outdir: str, fps: int = 1) -> str:
+    """
+    Extracts frames from a video and saves them in a 'frames' folder inside outdir.
+    :param video_path: Path to the video file (.mp4)
+    :param outdir: Base output directory
+    :param fps: Frames per second to extract
+    :return: Path to frames folder
+    """
+    frames_dir = os.path.join(outdir, "frames")
+    os.makedirs(frames_dir, exist_ok=True)
 
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise RuntimeError(f"Could not open video: {video_path}")
+
+    video_fps = cap.get(cv2.CAP_PROP_FPS)
+    frame_interval = int(round(video_fps / fps))  # how many frames to skip
+
+    count, saved = 0, 0
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        if count % frame_interval == 0:
+            frame_path = os.path.join(frames_dir, f"frame_{saved:05d}.jpg")
+            cv2.imwrite(frame_path, frame)
+            saved += 1
+
+        count += 1
+
+    cap.release()
+    print(f"Extracted {saved} frames to {frames_dir}")
+    return frames_dir
 
 
 if __name__ == "__main__":
@@ -81,8 +114,8 @@ if __name__ == "__main__":
     # video_path = "./output/Complete React Portfolio Website Project Tutorial - Create Personal Portfolio Website with React JS.mp4"
     video_path = download_youtube_video(video_url, outdir)
     print("Downloaded video saved at:", video_path)
-    # frames_folder = extract_frames(video_path, outdir, fps=1)
-    # print("Frames saved in:", frames_folder)
+    frames_folder = extract_frames(video_path, outdir, fps=1)
+    print("Frames saved in:", frames_folder)
 
 
 
