@@ -109,47 +109,84 @@ def extract_frames(video_path: str, outdir: str, fps: int = 1) -> str:
     print(f"Extracted {saved} frames to {frames_dir}")
     return frames_dir
 
-
-# def filter_vs_code_frames(frames_dir, output_dir, keywords=None, min_conf=50):
+# A more robust version of the filter function that checks for VS Code-like UI elements in frames:
+# def filter_vs_code_frames(frames_dir, output_dir, keywords=None):
 #     """
-#     Filters frames to keep only those containing VS Code UI elements.
+#     Filters frames to keep only those containing a VS Code-like interface
+#     by checking a combination of header text, file explorer content, and a unique color profile.
     
 #     Args:
-#         frames_dir (str | Path): Directory with extracted frames.
-#         output_dir (str | Path): Directory to save filtered frames.
+#         frames_dir (str | Path): The directory containing the extracted frames.
+#         output_dir (str | Path): The directory to save the filtered frames.
 #         keywords (list[str]): Keywords to look for in OCR text.
-#         min_conf (int): Confidence threshold for OCR (default=50).
 #     """
-#     frames_dir = Path(frames_dir)
-#     output_dir = Path(output_dir)
-#     output_dir.mkdir(parents=True, exist_ok=True)
-
+#     frames_path = Path(frames_dir)
+#     output_path = Path(output_dir)
+#     # Clear the output directory to avoid old files
+#     if output_path.exists():
+#         shutil.rmtree(output_path)
+#     output_path.mkdir(parents=True, exist_ok=True)
+    
 #     if keywords is None:
-#         keywords = ["Visual Studio Code", "PROBLEMS", "OUTPUT", "TERMINAL", "DEBUG CONSOLE"]
+#         # A comprehensive list including header menus and file explorer items
+#         keywords = [
+#             "File", "Edit", "Selection", "View", "Go", "Run", "Help",
+#             "src", "public", "node_modules", "package.json", "package-lock.json",
+#             "App.css", "App.js", "App.jsx", "index.css", "index.html",
+#             "components", "assets", "public", ".gitignore", "vite.config.js"
+#         ]
 
 #     kept, removed = 0, 0
+#     total = len(list(frames_path.glob("*.jpg")))
+    
+#     print(f"Starting to filter {total} frames. This may take a while.")
 
-#     for frame_path in frames_dir.glob("*.jpg"):
+#     for frame_path in frames_path.glob("*.jpg"):
 #         img = cv2.imread(str(frame_path))
 #         if img is None:
 #             continue
 
-#         # Run OCR
-#         ocr_result = pytesseract.image_to_string(img)
+#         # Check 1: OCR for header and sidebar keywords
+#         roi_left = img[:, :int(img.shape[1] * 0.25)] # Left 25% for sidebar
+#         roi_top = img[0:int(img.shape[0] * 0.05), :] # Top 5% for header
+        
+#         ocr_result_left = pytesseract.image_to_string(roi_left)
+#         ocr_result_top = pytesseract.image_to_string(roi_top)
+        
+#         text_found = any(kw.lower() in ocr_result_left.lower() or kw.lower() in ocr_result_top.lower() for kw in keywords)
 
-#         # Check if any keyword exists in OCR text
-#         if any(kw.lower() in ocr_result.lower() for kw in keywords):
-#             # Keep frame
-#             save_path = output_dir / frame_path.name
+#         # Check 2: Color analysis for a dark theme signature
+#         h, w, _ = img.shape
+#         # Sample a few key regions
+#         samples = [
+#             img[h-20:h, w-100:w],  # Bottom right status bar
+#             img[100:150, 0:50]     # Top left activity bar
+#         ]
+        
+#         # Check for dark pixel percentages
+#         is_dark_theme = False
+#         for sample in samples:
+#             if sample.size > 0:
+#                 gray_sample = cv2.cvtColor(sample, cv2.COLOR_BGR2GRAY)
+#                 dark_pixels = np.sum(gray_sample < 50) # Very dark pixels
+#                 if dark_pixels > sample.size * 0.5:
+#                     is_dark_theme = True
+#                     break
+
+#         # Check 3: Look for a file explorer-like structure (lines and spacing)
+#         # This is more advanced and can be added later if needed.
+#         # For now, the first two checks are sufficient and fast.
+        
+#         # Keep the frame if either of the main checks pass
+#         if text_found or is_dark_theme:
+#             save_path = output_path / frame_path.name
 #             cv2.imwrite(str(save_path), img)
 #             kept += 1
 #         else:
 #             removed += 1
+            
+#     print(f"✅ Filtering complete. Total frames processed: {total}. Kept: {kept}, Removed: {removed}")
 
-#     print(f"✅ Filtering complete. Kept: {kept}, Removed: {removed}")
-
-# # Example usage:
-# # filter_vs_code_frames("./output/frames", "./output/vscode_frames")
 
 
 
