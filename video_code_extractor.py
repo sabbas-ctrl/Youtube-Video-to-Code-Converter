@@ -36,6 +36,7 @@ from pathlib import Path
 from PIL import Image
 import pytesseract
 import imagehash
+import shutil
 from tqdm import tqdm
 from google import genai
 from google.genai import types
@@ -47,12 +48,16 @@ def download_youtube_video(url: str, outdir: str = "./output") -> str:
     Downloads a YouTube video in the best quality available as .mp4
     Returns the path of the downloaded video file.
     """
+    # Check if ffmpeg is in the system's PATH
+    if not shutil.which("ffmpeg"):
+        print("Warning: ffmpeg is not found in your system's PATH. This is required to merge best quality video and audio. The script will continue but may download a lower-quality video.")
+    
     os.makedirs(outdir, exist_ok=True)
 
     ydl_opts = {
         "format": "bestvideo+bestaudio/best",  # get best video + audio merged
         "merge_output_format": "mp4",          # always output .mp4
-        "outtmpl": os.path.join(outdir, "%(title)s.%(ext)s"),  # filename = video title
+        "outtmpl": os.path.join(outdir, "video.%(ext)s"),
         "noplaylist": True,                    # only one video, no playlists
         "quiet": False,                        # show progress
         "ignoreerrors": True
@@ -64,53 +69,20 @@ def download_youtube_video(url: str, outdir: str = "./output") -> str:
             raise RuntimeError("Failed to download video.")
 
         # Get final file path
-        return ydl.prepare_filename(info).replace(".webm", ".mp4").replace(".mkv", ".mp4")
+        return ydl.prepare_filename(info) #.replace(".webm", ".mp4").replace(".mkv", ".mp4")
 
 
-def extract_frames(video_path: str, outdir: str, fps: int = 1) -> str:
-    """
-    Extracts frames from a video and saves them in a 'frames' folder inside outdir.
-    :param video_path: Path to the video file (.mp4)
-    :param outdir: Base output directory
-    :param fps: Frames per second to extract
-    :return: Path to frames folder
-    """
-    frames_dir = os.path.join(outdir, "frames")
-    os.makedirs(frames_dir, exist_ok=True)
 
-    cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        raise RuntimeError(f"Could not open video: {video_path}")
-
-    video_fps = cap.get(cv2.CAP_PROP_FPS)
-    frame_interval = int(round(video_fps / fps))  # how many frames to skip
-
-    count, saved = 0, 0
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        if count % frame_interval == 0:
-            frame_path = os.path.join(frames_dir, f"frame_{saved:05d}.jpg")
-            cv2.imwrite(frame_path, frame)
-            saved += 1
-
-        count += 1
-
-    cap.release()
-    print(f"Extracted {saved} frames to {frames_dir}")
-    return frames_dir
 
 
 if __name__ == "__main__":
     video_url = "https://youtu.be/wFh0SJVDM9E"
     outdir = "./output"
-    video_path = "./output/Complete React Portfolio Website Project Tutorial - Create Personal Portfolio Website with React JS.mp4"
-    # video_path = download_youtube_video(video_url, outdir)
-    # print("Downloaded video saved at:", video_path)
-    frames_folder = extract_frames(video_path, outdir, fps=1)
-    print("Frames saved in:", frames_folder)
+    # video_path = "./output/Complete React Portfolio Website Project Tutorial - Create Personal Portfolio Website with React JS.mp4"
+    video_path = download_youtube_video(video_url, outdir)
+    print("Downloaded video saved at:", video_path)
+    # frames_folder = extract_frames(video_path, outdir, fps=1)
+    # print("Frames saved in:", frames_folder)
 
 
 
