@@ -41,6 +41,8 @@ from tqdm import tqdm
 from google import genai
 from google.genai import types
 from yt_dlp import YoutubeDL
+import numpy as np
+
 
 
 def download_youtube_video(url: str, outdir: str = "./output") -> str:
@@ -108,14 +110,120 @@ def extract_frames(video_path: str, outdir: str, fps: int = 1) -> str:
     return frames_dir
 
 
+# def filter_vs_code_frames(frames_dir, output_dir, keywords=None, min_conf=50):
+#     """
+#     Filters frames to keep only those containing VS Code UI elements.
+    
+#     Args:
+#         frames_dir (str | Path): Directory with extracted frames.
+#         output_dir (str | Path): Directory to save filtered frames.
+#         keywords (list[str]): Keywords to look for in OCR text.
+#         min_conf (int): Confidence threshold for OCR (default=50).
+#     """
+#     frames_dir = Path(frames_dir)
+#     output_dir = Path(output_dir)
+#     output_dir.mkdir(parents=True, exist_ok=True)
+
+#     if keywords is None:
+#         keywords = ["Visual Studio Code", "PROBLEMS", "OUTPUT", "TERMINAL", "DEBUG CONSOLE"]
+
+#     kept, removed = 0, 0
+
+#     for frame_path in frames_dir.glob("*.jpg"):
+#         img = cv2.imread(str(frame_path))
+#         if img is None:
+#             continue
+
+#         # Run OCR
+#         ocr_result = pytesseract.image_to_string(img)
+
+#         # Check if any keyword exists in OCR text
+#         if any(kw.lower() in ocr_result.lower() for kw in keywords):
+#             # Keep frame
+#             save_path = output_dir / frame_path.name
+#             cv2.imwrite(str(save_path), img)
+#             kept += 1
+#         else:
+#             removed += 1
+
+#     print(f"✅ Filtering complete. Kept: {kept}, Removed: {removed}")
+
+# # Example usage:
+# # filter_vs_code_frames("./output/frames", "./output/vscode_frames")
+
+
+
+def filter_vs_code_frames(frames_dir, output_dir, keywords=None):
+    """
+    Filters frames to keep only those containing VS Code UI elements
+    by checking for a combination of header text and a unique color-based icon.
+    
+    Args:
+        frames_dir (str | Path): Directory with extracted frames.
+        output_dir (str | Path): Directory to save filtered frames.
+        keywords (list[str]): Keywords to look for in OCR text.
+    """
+    frames_dir = Path(frames_dir)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if keywords is None:
+        # A comprehensive list including header menus and file explorer items
+        keywords = [
+            "File", "Edit", "Selection", "View", "Go", "Run", "Help",
+            "src", "public", "node_modules", "package.json", "App.js", "App.jsx",
+            "index.css", ".gitignore", "vite.config.js"
+        ]
+
+    kept, removed = 0, 0
+    
+    for frame_path in frames_dir.glob("*.jpg"):
+        img = cv2.imread(str(frame_path))
+        if img is None:
+            continue
+
+        # Check 1: OCR for header keywords
+        # This ROI targets the top menu bar
+        roi_header = img[0:int(img.shape[0] * 0.05), :]
+        ocr_result_header = pytesseract.image_to_string(roi_header)
+        
+        header_found = any(kw.lower() in ocr_result_header.lower() for kw in keywords)
+        
+        # Check 2: Look for the unique explorer icon color
+        # This ROI targets the activity bar, where the explorer icon is located
+        roi_icon = img[int(img.shape[0] * 0.1):int(img.shape[0] * 0.15), 0:int(img.shape[1] * 0.05)]
+        
+        # Define a common VS Code dark theme icon color (a type of teal/blue)
+        # BGR format
+        lower_blue = np.array([120, 50, 20])
+        upper_blue = np.array([255, 100, 50])
+        
+        # Create a mask for the color
+        mask = cv2.inRange(roi_icon, lower_blue, upper_blue)
+        
+        # Check if a significant portion of the ROI matches the color
+        icon_found = np.count_nonzero(mask) > 100 # a small threshold
+        
+        # If either the header text or the icon is found, keep the frame
+        if header_found or icon_found:
+            save_path = output_dir / frame_path.name
+            cv2.imwrite(str(save_path), img)
+            kept += 1
+        else:
+            removed += 1
+            
+    print(f"✅ Filtering complete. Kept: {kept}, Removed: {removed}")
+
+
 if __name__ == "__main__":
     video_url = "https://youtu.be/wFh0SJVDM9E"
     outdir = "./output"
     # video_path = "./output/Complete React Portfolio Website Project Tutorial - Create Personal Portfolio Website with React JS.mp4"
-    video_path = download_youtube_video(video_url, outdir)
-    print("Downloaded video saved at:", video_path)
-    frames_folder = extract_frames(video_path, outdir, fps=1)
-    print("Frames saved in:", frames_folder)
+    # video_path = download_youtube_video(video_url, outdir)
+    # print("Downloaded video saved at:", video_path)
+    # frames_folder = extract_frames(video_path, outdir, fps=1)
+    # print("Frames saved in:", frames_folder)
+    filter_vs_code_frames("./output/frames", "./output/vscode_frames")
 
 
 
