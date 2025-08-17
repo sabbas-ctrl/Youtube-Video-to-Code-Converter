@@ -252,6 +252,63 @@ def filter_vs_code_frames(frames_dir, output_dir, keywords=None):
     print(f"✅ Filtering complete. Kept: {kept}, Removed: {removed}")
 
 
+def clean_vs_code_frames(frames_dir, output_dir, min_conf=50):
+    """
+    Filters VS Code frames:
+    1. Keeps only frames with a file open (tab detected).
+    2. Removes frames where first 5 lines of code area are empty.
+    
+    Args:
+        frames_dir (str): Input folder with filtered VS Code frames.
+        output_dir (str): Output folder for cleaned frames.
+        min_conf (int): OCR confidence (default=50).
+    """
+    frames_dir = Path(frames_dir)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    kept, removed = 0, 0
+
+    for frame_path in frames_dir.glob("*.jpg"):
+        img = cv2.imread(str(frame_path))
+        if img is None:
+            continue
+
+        h, w, _ = img.shape
+
+        # ------------------------
+        # Step 1: Check for open file tab (top bar area ~ 10-15% height)
+        # ------------------------
+        tab_area = img[0:int(h*0.15), 0:w]   # top 15%
+        tab_text = pytesseract.image_to_string(tab_area)
+
+        if not any(ext in tab_text for ext in [".py", ".js", ".java", ".cpp", ".md", ".txt"]):
+            removed += 1
+            continue  # no file open, discard
+
+        # ------------------------
+        # Step 2: Check code area (middle ~ 70% of screen)
+        # ------------------------
+        code_area = img[int(h*0.15):int(h*0.85), 0:w]   # skip tabs & bottom panels
+        code_text = pytesseract.image_to_string(code_area)
+
+        # Split lines, take first 5
+        code_lines = [line.strip() for line in code_text.split("\n") if line.strip() != ""]
+
+        if len(code_lines) < 5:  
+            removed += 1
+            continue  # not enough visible code, discard
+
+        # ------------------------
+        # Step 3: Keep frame
+        # ------------------------
+        save_path = output_dir / frame_path.name
+        cv2.imwrite(str(save_path), img)
+        kept += 1
+
+    print(f"✅ Cleaning complete. Kept: {kept}, Removed: {removed}")
+
+
 if __name__ == "__main__":
     video_url = "https://youtu.be/wFh0SJVDM9E"
     outdir = "./output"
@@ -260,8 +317,8 @@ if __name__ == "__main__":
     # print("Downloaded video saved at:", video_path)
     # frames_folder = extract_frames(video_path, outdir, fps=1)
     # print("Frames saved in:", frames_folder)
-    filter_vs_code_frames("./output/frames", "./output/vscode_frames")
-
+    # filter_vs_code_frames("./output/frames", "./output/vscode_frames")
+    clean_vs_code_frames("./output/vscode_frames", "./output/clean_frames")
 
 
 
