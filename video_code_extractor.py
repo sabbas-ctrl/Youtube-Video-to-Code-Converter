@@ -45,6 +45,7 @@ import numpy as np
 
 
 
+
 def download_youtube_video(url: str, outdir: str = "./output") -> str:
     """
     Downloads a YouTube video in the best quality available as .mp4
@@ -72,6 +73,7 @@ def download_youtube_video(url: str, outdir: str = "./output") -> str:
 
         # Get final file path
         return ydl.prepare_filename(info) #.replace(".webm", ".mp4").replace(".mkv", ".mp4")
+
 
 
 def extract_frames(video_path: str, outdir: str, fps: int = 1) -> str:
@@ -252,6 +254,7 @@ def filter_vs_code_frames(frames_dir, output_dir, keywords=None):
     print(f"✅ Filtering complete. Kept: {kept}, Removed: {removed}")
 
 
+
 def clean_vs_code_frames(frames_dir, output_dir, min_conf=50):
     """
     Filters VS Code frames:
@@ -307,6 +310,7 @@ def clean_vs_code_frames(frames_dir, output_dir, min_conf=50):
         kept += 1
 
     print(f"✅ Cleaning complete. Kept: {kept}, Removed: {removed}")
+
 
 
 if __name__ == "__main__":
